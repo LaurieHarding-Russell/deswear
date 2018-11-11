@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <stdio.h>
 #include <string>
 #include <cstring>
@@ -8,12 +9,17 @@
 
 
 bool containsSwear(const char * summary) {
+
     std::array<std::string, 3> swears = {{
         "shit", "damn", "fuck"
     }};
 
+    std::string commitMessage = summary;
+
+    std::transform(commitMessage.begin(), commitMessage.end(), commitMessage.begin(), ::tolower);
+
     for (uint i = 0; i != swears.size(); i++) {
-        if(std::strstr(summary, swears[i].c_str()) != NULL) {
+        if(std::strstr(commitMessage.c_str(), swears[i].c_str()) != NULL) {
             return true;
         }
     }
@@ -29,7 +35,7 @@ int main() {
     git_diff_options diffopts = GIT_DIFF_OPTIONS_INIT;
 
     int error = git_repository_open(&repo, REPO_LOCATION);
-    if (error < 0) {
+    if (error < 0) {    
         const git_error *e = giterr_last();
         printf("Error %d/%d: %s\n", error, e->klass, e->message);
         exit(error);
