@@ -7,28 +7,12 @@
 #include <iostream>
 #include "git2.h"
 
+const char * REPO_LOCATION = "/home/laurie/test";
 
-bool containsSwear(const char * summary) {
-
-    std::array<std::string, 3> swears = {{
-        "shit", "damn", "fuck"
-    }};
-
-    std::string commitMessage = summary;
-
-    std::transform(commitMessage.begin(), commitMessage.end(), commitMessage.begin(), ::tolower);
-
-    for (uint i = 0; i != swears.size(); i++) {
-        if(std::strstr(commitMessage.c_str(), swears[i].c_str()) != NULL) {
-            return true;
-        }
-    }
-    return false;
-}
+bool containsSwear(const char * summary);
+void deswear(git_repository* repo);
 
 int main() {
-
-    const char * REPO_LOCATION = "/home/laurie/test";
     git_libgit2_init();
 
     git_repository *repo = NULL;
@@ -41,8 +25,14 @@ int main() {
         exit(error);
     }
 
-    git_oid oid;
+    deswear(repo);
 
+    git_libgit2_shutdown();
+    return 0;
+}
+
+void deswear(git_repository* repo) {
+    git_oid oid;
     git_revwalk *walker;
     git_revwalk_new(&walker, repo);
     git_revwalk_push_head(walker);
@@ -62,8 +52,21 @@ int main() {
 
     git_revwalk_free(walker);
     git_repository_free(repo);
+}
 
+bool containsSwear(const char * summary) {
+    std::array<std::string, 3> swears = {{
+        "shit", "damn", "fuck"
+    }};
 
-    git_libgit2_shutdown();
-    return 0;
+    std::string commitMessage = summary;
+
+    std::transform(commitMessage.begin(), commitMessage.end(), commitMessage.begin(), ::tolower);
+
+    for (uint i = 0; i != swears.size(); i++) {
+        if(std::strstr(commitMessage.c_str(), swears[i].c_str()) != NULL) {
+            return true;
+        }
+    }
+    return false;
 }
