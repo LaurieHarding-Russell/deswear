@@ -82,7 +82,7 @@ git_oid removeSwears(git_repository* repo, git_commit *commit, git_oid *childCom
     git_oid oid;
 
     if (firstCommit) {
-        git_commit_amend(&oid, commit, "HEAD", NULL, NULL, NULL, COMMIT_MESSAGE, NULL);
+        git_commit_amend(&oid, commit, "master", NULL, NULL, NULL, COMMIT_MESSAGE, NULL);
     } else {
         git_commit_amend(&oid, commit, NULL, NULL, NULL, NULL, COMMIT_MESSAGE, NULL);
     }
@@ -94,7 +94,7 @@ git_oid removeSwears(git_repository* repo, git_commit *commit, git_oid *childCom
     return oid;
 }
 
-// Rebasing is yucky.
+// Rebasing is yucky. FIXME, fix this monster.
 void rebaseChild(git_repository* repo, git_oid parentCommitId, git_oid *childCommitId) {
 
     git_annotated_commit *parentAnnotatedCommit = NULL;
@@ -105,15 +105,46 @@ void rebaseChild(git_repository* repo, git_oid parentCommitId, git_oid *childCom
 
     git_rebase *rebaseObject = NULL;
     git_rebase_operation *rebaseOperationObject = NULL;
+    git_rebase_options rebaseOpt = GIT_REBASE_OPTIONS_INIT;
     std::cout << "asdf..." << git_oid_tostr_s(childCommitId) << " \n";
-    if (git_rebase_init(&rebaseObject, repo, childAnnotatedCommit, NULL, parentAnnotatedCommit, NULL) != 0) {
-        std::cout << "We have a problem..." << git_oid_tostr_s(childCommitId) << " \n";
+
+
+    // Initializing rebase: What we want to do.
+    int error = git_rebase_open(&rebaseObject, repo, &rebaseOpt);
+    if (error == GIT_ENOTFOUND) {
+        if (git_rebase_init(&rebaseObject, repo, childAnnotatedCommit, NULL, parentAnnotatedCommit, &rebaseOpt) != 0) {
+            std::cout << "We have a problem..." << git_oid_tostr_s(childCommitId) << " \n";
+            exit(1);
+        }
+    } else if (error > 1){
+        const git_error *e = giterr_last();
+        std::cout << "Error: " << error << " / " << e->klass << " : " << e->message << std::endl;
         exit(1);
     }
-    if (git_rebase_next(&rebaseOperationObject, rebaseObject) != 0) {
-        std::cout << "We have a next problem... Rebase failed? \n";
+
+    int entrycount = git_rebase_operation_entrycount(rebaseObject);
+    std::cout<< "rebase entry count: " << entrycount << "\n";
+
+    // Rebase next: Performing the actions required to make rebase initialize a thing.
+    while (git_rebase_next(&rebaseOperationObject, rebaseObject) != GIT_ITEROVER) {
+        uint current = git_rebase_operation_current(rebaseObject);
+        std::cout<< "rebase current index: " << current << "\n";
+        if (GIT_REBASE_NO_OPERATION == current) {
+            std::cout<< "rebase no operation" << "\n";
+        }
+        rebaseOperationObject = git_rebase_operation_byindex(rebaseObject, 0);
+    }
+
+    // Not supporting merging
+
+    // Finished? 
+    error = git_rebase_finish(rebaseObject, NULL);
+    if (error < 0){
+        const git_error *e = giterr_last();
+        std::cout << "Error: " << error << " / " << e->klass << " : " << e->message << std::endl;
         exit(1);
     }
+
     git_rebase_free(rebaseObject);
 }
 
