@@ -5,6 +5,7 @@
 #include <array>
 
 #include <iostream>
+#include <vector>
 #include "git2.h"
 
 const char * REPO_LOCATION = "/home/laurie/test";
@@ -13,8 +14,10 @@ const char * COMMIT_MESSAGE = "Whoops";
 bool containsSwear(const char * summary);
 void deswear(git_repository* repo);
 void updateChildren(git_commit *commit);
-git_oid removeSwears(git_repository* repo, git_commit *commit, git_oid *childCommit, bool firstCommit);
+void removeSwears(git_repository* repo, git_commit *commit, bool firstCommit);
 void rebaseChild(git_repository* repo, git_oid parentCommitId, git_oid *childCommit);
+std::vector<git_commit*> findChildren(git_repository* repo, git_commit* parent);
+
 int main() {
     git_libgit2_init();
 
@@ -39,7 +42,6 @@ void deswear(git_repository* repo) {
     git_revwalk_new(&walker, repo);
     git_revwalk_push_head(walker);
     git_commit *commit = NULL;
-    git_oid childCommitId;
     bool firstCommit = true;
     while(!git_revwalk_next(&oid, walker)) {
 		git_commit_lookup(&commit, repo, &oid);
@@ -48,9 +50,7 @@ void deswear(git_repository* repo) {
 
         if (containsSwear(summary)) {
             std::cout << git_oid_tostr_s(&oid) << " " << git_commit_summary(commit) << std::endl; 
-            childCommitId = removeSwears(repo, commit, &childCommitId, firstCommit);
-        } else {
-            childCommitId = oid;
+            removeSwears(repo, commit, firstCommit);
         }
         
 		git_commit_free(commit);
@@ -78,20 +78,25 @@ bool containsSwear(const char * summary) {
     return false;
 }
 
-git_oid removeSwears(git_repository* repo, git_commit *commit, git_oid *childCommitId, bool firstCommit) {
+void removeSwears(git_repository* repo, git_commit *commit, bool firstCommit) {
     git_oid oid;
 
     if (firstCommit) {
-        git_commit_amend(&oid, commit, "master", NULL, NULL, NULL, COMMIT_MESSAGE, NULL);
+        git_commit_amend(&oid, commit, "HEAD", NULL, NULL, NULL, COMMIT_MESSAGE, NULL);
     } else {
         git_commit_amend(&oid, commit, NULL, NULL, NULL, NULL, COMMIT_MESSAGE, NULL);
     }
-    if (!firstCommit) {
+
+    std::vector<git_commit*> children = findChildren(repo, commit);
+    std::cout << "children? " << children.size() << std::endl;
+
+    for(uint i=0; i != children.size(); i++) {
+        git_oid childId = *git_commit_id(children[i]);
+
         std::cout << "  -- New Parent " << git_oid_tostr_s(&oid) << std::endl;
-        std::cout << "  -- Child " << git_oid_tostr_s(childCommitId) << std::endl;
-        rebaseChild(repo, oid, childCommitId);
+        std::cout << "  -- Child " << git_oid_tostr_s(&childId) << std::endl;
+        // rebaseChild(repo, oid, &childId);
     }
-    return oid;
 }
 
 // Rebasing is yucky. FIXME, fix this monster.
@@ -148,3 +153,33 @@ void rebaseChild(git_repository* repo, git_oid parentCommitId, git_oid *childCom
     git_rebase_free(rebaseObject);
 }
 
+
+// FIXME, library
+std::vector<git_commit*> findChildren(git_repository* repo, git_commit* parent) {
+    git_oid oid;
+    git_revwalk *walker;
+    git_revwalk_new(&walker, repo);
+    git_revwalk_push_head(walker);
+    git_commit *commit = NULL;
+    git_commit *currentParent = NULL;
+
+    std::vector<git_commit*> children;
+
+    while(!git_revwalk_next(&oid, walker)) {
+		git_commit_lookup(&commit, repo, &oid);
+
+        int numberOfParents = git_commit_parentcount(commit);
+        for (int i = 0; i != numberOfParents; i++) {
+            git_commit_parent(&currentParent, commit, i);
+            if (git_commit_id(parent) == git_commit_id(currentParent)) {
+                children.push_back(commit);
+            }
+        }
+
+		git_commit_free(commit);
+    }
+
+    git_revwalk_free(walker);   
+
+    return children;
+}
