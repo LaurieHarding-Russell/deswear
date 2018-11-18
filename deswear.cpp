@@ -124,8 +124,11 @@ void rebaseOntoAmended(git_repository* repo, git_oid amendedCommitId, git_oid am
     std::cout << git_oid_tostr_s(git_annotated_commit_id(amendingAnnotatedCommit)) << " amending before" << std::endl; 
 
     git_rebase *rebaseObject = NULL;
-    git_rebase_operation *rebaseOperationObject = NULL;
-    git_rebase_options rebaseOpt = GIT_REBASE_OPTIONS_INIT;
+    
+    git_rebase_options rebaseOpt{};
+    git_rebase_init_options(&rebaseOpt, GIT_REBASE_OPTIONS_VERSION);
+    rebaseOpt.merge_options.file_favor = GIT_MERGE_FILE_FAVOR_UNION;
+
 
     int error = git_rebase_open(&rebaseObject, repo, &rebaseOpt);
     if (error == GIT_ENOTFOUND) {
@@ -142,17 +145,23 @@ void rebaseOntoAmended(git_repository* repo, git_oid amendedCommitId, git_oid am
         exit(1);
     }
 
-    int entrycount = git_rebase_operation_entrycount(rebaseObject);
-    std::cout<< "rebase entry count: " << entrycount << "\n";
+    git_rebase_operation *rebaseOperation = NULL;
+    while (git_rebase_next(&rebaseOperation, rebaseObject) != GIT_ITEROVER) {
+        git_commit *rebaseCommit;
+        git_oid *mergedRebaseCommitId;
+        
+        if (rebaseOperation != NULL) {
+            git_commit_lookup(&rebaseCommit, repo, &rebaseOperation->id);
+            std::string CommitMsg(git_commit_summary(rebaseCommit));
 
-    // Rebase next: Performing the actions required to make rebase initialize a thing.
-    while (git_rebase_next(&rebaseOperationObject, rebaseObject) != GIT_ITEROVER) {
-        uint current = git_rebase_operation_current(rebaseObject);
-        std::cout<< "rebase current index: " << current << "\n";
-        if (GIT_REBASE_NO_OPERATION == current) {
-            std::cout<< "rebase no operation" << "\n";
+            git_rebase_commit(mergedRebaseCommitId, rebaseObject, NULL, git_commit_author(rebaseCommit), NULL, NULL);
+
+            git_commit_free(rebaseCommit);
+            std::cout << "Applying commit \"" << CommitMsg << "\"" << std::endl;
+        } else {
+            const git_error *e = giterr_last();
+            std::cout << "Error: " << error << " / " << e->klass << " : " << e->message << std::endl;
         }
-        rebaseOperationObject = git_rebase_operation_byindex(rebaseObject, 0);
     }
 
     error = git_rebase_finish(rebaseObject, NULL);
@@ -164,7 +173,4 @@ void rebaseOntoAmended(git_repository* repo, git_oid amendedCommitId, git_oid am
 
     git_rebase_free(rebaseObject);
     
-    std::cout << git_oid_tostr_s(git_annotated_commit_id(masterAnnotatedCommit)) << " master after" << std::endl; 
-    std::cout << git_oid_tostr_s(git_annotated_commit_id(amendedAnnotatedCommit)) << " amended after" << std::endl; 
-    std::cout << git_oid_tostr_s(git_annotated_commit_id(amendingAnnotatedCommit)) << " amending after" << std::endl; 
 }
