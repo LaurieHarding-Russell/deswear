@@ -98,7 +98,7 @@ void removeSwears(git_repository* repo, git_commit *commit, bool firstCommit) {
     git_commit* ammendedCommit = NULL;
     git_commit_lookup(&ammendedCommit, repo, &oid);
     git_branch_create(&ammended, repo, "Amended", ammendedCommit, true);
-    // rebaseOntoAmended(repo, oid, *git_commit_id(parentOfAmendingCommit));
+    rebaseOntoAmended(repo, oid, *git_commit_id(commit));
 }
 
 // Rebasing is yucky. FIXME, fix this monster.
