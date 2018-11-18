@@ -15,8 +15,7 @@ bool containsSwear(const char * summary);
 void deswear(git_repository* repo);
 void updateChildren(git_commit *commit);
 void removeSwears(git_repository* repo, git_commit *commit, bool firstCommit);
-void rebaseChild(git_repository* repo, git_oid parentCommitId, git_oid *childCommit);
-std::vector<git_commit*> findChildren(git_repository* repo, git_commit* parent);
+void rebaseOntoAmended(git_repository* repo, git_oid amendedCommitId, git_oid amendedParentCommidId);
 
 int main() {
     git_libgit2_init();
@@ -81,44 +80,51 @@ bool containsSwear(const char * summary) {
 void removeSwears(git_repository* repo, git_commit *commit, bool firstCommit) {
     git_oid oid;
 
+    git_commit *parentOfAmendingCommit = NULL;
+    git_commit_parent(&parentOfAmendingCommit, commit, 0);
+
+    git_reference * parent = NULL;
+    git_branch_create(&parent, repo, "Amending", parentOfAmendingCommit, true);
+
+    // git_index* out;
+    // git_cherrypick_commit(&out, repo, commit, parentOfAmendingCommit, 0, NULL);
+
     if (firstCommit) {
         git_commit_amend(&oid, commit, "HEAD", NULL, NULL, NULL, COMMIT_MESSAGE, NULL);
     } else {
         git_commit_amend(&oid, commit, NULL, NULL, NULL, NULL, COMMIT_MESSAGE, NULL);
     }
 
-    std::vector<git_commit*> children = findChildren(repo, commit);
-    std::cout << "children? " << children.size() << std::endl;
-
-    for(uint i=0; i != children.size(); i++) {
-        git_oid childId = *git_commit_id(children[i]);
-
-        std::cout << "  -- New Parent " << git_oid_tostr_s(&oid) << std::endl;
-        std::cout << "  -- Child " << git_oid_tostr_s(&childId) << std::endl;
-        // rebaseChild(repo, oid, &childId);
-    }
+    rebaseOntoAmended(repo, oid, *git_commit_id(parentOfAmendingCommit));
 }
 
 // Rebasing is yucky. FIXME, fix this monster.
-void rebaseChild(git_repository* repo, git_oid parentCommitId, git_oid *childCommitId) {
+void rebaseOntoAmended(git_repository* repo, git_oid amendedCommitId, git_oid amendedParentCommidId) {
 
-    git_annotated_commit *parentAnnotatedCommit = NULL;
-    git_annotated_commit_lookup(&parentAnnotatedCommit, repo, &parentCommitId); 
+    git_annotated_commit *amendedAnnotatedCommit = NULL;
+    git_annotated_commit_lookup(&amendedAnnotatedCommit, repo, &amendedCommitId);
 
-    git_annotated_commit *childAnnotatedCommit;
-    git_annotated_commit_lookup(&childAnnotatedCommit, repo, childCommitId); 
+    git_annotated_commit* amendingAnnotatedCommit = NULL; 
+    git_reference *refAmending = NULL;
+    git_reference_dwim(&refAmending, repo, "Amending");
+    git_annotated_commit_from_ref(&amendingAnnotatedCommit, repo, refAmending);
+
+    git_annotated_commit* masterAnnotatedCommit = NULL; 
+    git_reference *refMaster = NULL;
+    git_reference_dwim(& refMaster, repo, "master");
+    git_annotated_commit_from_ref(&masterAnnotatedCommit, repo, refMaster);
+
 
     git_rebase *rebaseObject = NULL;
     git_rebase_operation *rebaseOperationObject = NULL;
     git_rebase_options rebaseOpt = GIT_REBASE_OPTIONS_INIT;
-    std::cout << "asdf..." << git_oid_tostr_s(childCommitId) << " \n";
 
-
-    // Initializing rebase: What we want to do.
     int error = git_rebase_open(&rebaseObject, repo, &rebaseOpt);
     if (error == GIT_ENOTFOUND) {
-        if (git_rebase_init(&rebaseObject, repo, childAnnotatedCommit, NULL, parentAnnotatedCommit, &rebaseOpt) != 0) {
-            std::cout << "We have a problem..." << git_oid_tostr_s(childCommitId) << " \n";
+        if (git_rebase_init(&rebaseObject, repo, masterAnnotatedCommit, amendingAnnotatedCommit, amendedAnnotatedCommit, &rebaseOpt) != 0) {
+            std::cout << "We have a problem... \n";
+            const git_error *e = giterr_last();
+            std::cout << "Error: " << error << " / " << e->klass << " : " << e->message << std::endl;
             exit(1);
         }
     } else if (error > 1){
@@ -140,9 +146,6 @@ void rebaseChild(git_repository* repo, git_oid parentCommitId, git_oid *childCom
         rebaseOperationObject = git_rebase_operation_byindex(rebaseObject, 0);
     }
 
-    // Not supporting merging
-
-    // Finished? 
     error = git_rebase_finish(rebaseObject, NULL);
     if (error < 0){
         const git_error *e = giterr_last();
@@ -151,35 +154,4 @@ void rebaseChild(git_repository* repo, git_oid parentCommitId, git_oid *childCom
     }
 
     git_rebase_free(rebaseObject);
-}
-
-
-// FIXME, library
-std::vector<git_commit*> findChildren(git_repository* repo, git_commit* parent) {
-    git_oid oid;
-    git_revwalk *walker;
-    git_revwalk_new(&walker, repo);
-    git_revwalk_push_head(walker);
-    git_commit *commit = NULL;
-    git_commit *currentParent = NULL;
-
-    std::vector<git_commit*> children;
-
-    while(!git_revwalk_next(&oid, walker)) {
-		git_commit_lookup(&commit, repo, &oid);
-
-        int numberOfParents = git_commit_parentcount(commit);
-        for (int i = 0; i != numberOfParents; i++) {
-            git_commit_parent(&currentParent, commit, i);
-            if (git_commit_id(parent) == git_commit_id(currentParent)) {
-                children.push_back(commit);
-            }
-        }
-
-		git_commit_free(commit);
-    }
-
-    git_revwalk_free(walker);   
-
-    return children;
 }
