@@ -87,22 +87,30 @@ void removeSwears(git_repository* repo, git_commit *commit, bool firstCommit) {
     git_branch_create(&parent, repo, "Amending", parentOfAmendingCommit, true);
 
     // git_index* out;
-    // git_cherrypick_commit(&out, repo, commit, parentOfAmendingCommit, 0, NULL);
+    // git_cherrypick_commit(out);
 
     if (firstCommit) {
-        git_commit_amend(&oid, commit, "HEAD", NULL, NULL, NULL, COMMIT_MESSAGE, NULL);
+        std::cout << "test 1 \n";
+        git_commit_amend(&oid, commit, "refs/heads/master", NULL, NULL, NULL, COMMIT_MESSAGE, NULL);
     } else {
+        std::cout << "test 2 \n";
         git_commit_amend(&oid, commit, NULL, NULL, NULL, NULL, COMMIT_MESSAGE, NULL);
     }
 
-    rebaseOntoAmended(repo, oid, *git_commit_id(parentOfAmendingCommit));
+    git_reference * ammended = NULL;
+    git_commit* ammendedCommit = NULL;
+    git_commit_lookup(&ammendedCommit, repo, &oid);
+    git_branch_create(&ammended, repo, "Amended", ammendedCommit, true);
+    // rebaseOntoAmended(repo, oid, *git_commit_id(parentOfAmendingCommit));
 }
 
 // Rebasing is yucky. FIXME, fix this monster.
 void rebaseOntoAmended(git_repository* repo, git_oid amendedCommitId, git_oid amendedParentCommidId) {
 
     git_annotated_commit *amendedAnnotatedCommit = NULL;
-    git_annotated_commit_lookup(&amendedAnnotatedCommit, repo, &amendedCommitId);
+    git_reference *refAmended = NULL;
+    git_reference_dwim(&refAmended, repo, "Amended");
+    git_annotated_commit_from_ref(&amendedAnnotatedCommit, repo, refAmended);
 
     git_annotated_commit* amendingAnnotatedCommit = NULL; 
     git_reference *refAmending = NULL;
@@ -111,9 +119,10 @@ void rebaseOntoAmended(git_repository* repo, git_oid amendedCommitId, git_oid am
 
     git_annotated_commit* masterAnnotatedCommit = NULL; 
     git_reference *refMaster = NULL;
-    git_reference_dwim(& refMaster, repo, "master");
+    git_reference_dwim(& refMaster, repo, "refs/heads/master");
     git_annotated_commit_from_ref(&masterAnnotatedCommit, repo, refMaster);
 
+    std::cout << git_oid_tostr_s(git_annotated_commit_id(masterAnnotatedCommit)) << " bla bla bla" << std::endl; 
 
     git_rebase *rebaseObject = NULL;
     git_rebase_operation *rebaseOperationObject = NULL;
@@ -121,7 +130,7 @@ void rebaseOntoAmended(git_repository* repo, git_oid amendedCommitId, git_oid am
 
     int error = git_rebase_open(&rebaseObject, repo, &rebaseOpt);
     if (error == GIT_ENOTFOUND) {
-        if (git_rebase_init(&rebaseObject, repo, masterAnnotatedCommit, amendingAnnotatedCommit, amendedAnnotatedCommit, &rebaseOpt) != 0) {
+        if (git_rebase_init(&rebaseObject, repo, masterAnnotatedCommit, amendingAnnotatedCommit, amendedAnnotatedCommit, NULL) != 0) {
             std::cout << "We have a problem... \n";
             const git_error *e = giterr_last();
             std::cout << "Error: " << error << " / " << e->klass << " : " << e->message << std::endl;
