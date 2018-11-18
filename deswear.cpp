@@ -119,7 +119,9 @@ void rebaseOntoAmended(git_repository* repo, git_oid amendedCommitId, git_oid am
     git_reference_dwim(& refMaster, repo, "refs/heads/master");
     git_annotated_commit_from_ref(&masterAnnotatedCommit, repo, refMaster);
 
-    std::cout << git_oid_tostr_s(git_annotated_commit_id(masterAnnotatedCommit)) << " bla bla bla" << std::endl; 
+    std::cout << git_oid_tostr_s(git_annotated_commit_id(masterAnnotatedCommit)) << " master before" << std::endl; 
+    std::cout << git_oid_tostr_s(git_annotated_commit_id(amendedAnnotatedCommit)) << " amended before" << std::endl; 
+    std::cout << git_oid_tostr_s(git_annotated_commit_id(amendingAnnotatedCommit)) << " amending before" << std::endl; 
 
     git_rebase *rebaseObject = NULL;
     git_rebase_operation *rebaseOperationObject = NULL;
@@ -127,7 +129,8 @@ void rebaseOntoAmended(git_repository* repo, git_oid amendedCommitId, git_oid am
 
     int error = git_rebase_open(&rebaseObject, repo, &rebaseOpt);
     if (error == GIT_ENOTFOUND) {
-        if (git_rebase_init(&rebaseObject, repo, masterAnnotatedCommit, amendingAnnotatedCommit, amendedAnnotatedCommit, NULL) != 0) {
+        // git rebase --onto Amended Amending master
+        if (git_rebase_init(&rebaseObject, repo, masterAnnotatedCommit, amendingAnnotatedCommit, amendedAnnotatedCommit, &rebaseOpt) != 0) {
             std::cout << "We have a problem... \n";
             const git_error *e = giterr_last();
             std::cout << "Error: " << error << " / " << e->klass << " : " << e->message << std::endl;
@@ -160,4 +163,8 @@ void rebaseOntoAmended(git_repository* repo, git_oid amendedCommitId, git_oid am
     }
 
     git_rebase_free(rebaseObject);
+    
+    std::cout << git_oid_tostr_s(git_annotated_commit_id(masterAnnotatedCommit)) << " master after" << std::endl; 
+    std::cout << git_oid_tostr_s(git_annotated_commit_id(amendedAnnotatedCommit)) << " amended after" << std::endl; 
+    std::cout << git_oid_tostr_s(git_annotated_commit_id(amendingAnnotatedCommit)) << " amending after" << std::endl; 
 }
