@@ -80,11 +80,8 @@ bool containsSwear(const char * summary) {
 void removeSwears(git_repository* repo, git_commit *commit, bool firstCommit) {
     git_oid oid;
 
-    git_commit *parentOfAmendingCommit = NULL;
-    git_commit_parent(&parentOfAmendingCommit, commit, 0);
-
     git_reference * parent = NULL;
-    git_branch_create(&parent, repo, "Amending", parentOfAmendingCommit, true);
+    git_branch_create(&parent, repo, "Amending", commit, true);
 
     // git_index* out;
     // git_cherrypick_commit(out);
