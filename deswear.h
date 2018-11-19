@@ -8,32 +8,13 @@
 #include <vector>
 #include "git2.h"
 
-const char * REPO_LOCATION = "/home/laurie/test";
 const char * COMMIT_MESSAGE = "Whoops";
+void deswear(git_repository* repo);
 
 bool containsSwear(const char * summary);
-void deswear(git_repository* repo);
 void updateChildren(git_commit *commit);
 void removeSwears(git_repository* repo, git_commit *commit, bool firstCommit);
 void rebaseOntoAmended(git_repository* repo, git_oid amendedCommitId, git_oid amendedParentCommidId);
-
-int main() {
-    git_libgit2_init();
-
-    git_repository *repo = NULL;
-
-    int error = git_repository_open(&repo, REPO_LOCATION);
-    if (error < 0) {    
-        const git_error *e = giterr_last();
-        printf("Error %d/%d: %s\n", error, e->klass, e->message);
-        exit(error);
-    }
-
-    deswear(repo);
-
-    git_libgit2_shutdown();
-    return 0;
-}
 
 void deswear(git_repository* repo) {
     git_oid oid;
@@ -83,14 +64,9 @@ void removeSwears(git_repository* repo, git_commit *commit, bool firstCommit) {
     git_reference * parent = NULL;
     git_branch_create(&parent, repo, "Amending", commit, true);
 
-    // git_index* out;
-    // git_cherrypick_commit(out);
-
     if (firstCommit) {
-        std::cout << "test 1 \n";
         git_commit_amend(&oid, commit, "refs/heads/master", NULL, NULL, NULL, COMMIT_MESSAGE, NULL);
     } else {
-        std::cout << "test 2 \n";
         git_commit_amend(&oid, commit, NULL, NULL, NULL, NULL, COMMIT_MESSAGE, NULL);
     }
 
@@ -118,10 +94,6 @@ void rebaseOntoAmended(git_repository* repo, git_oid amendedCommitId, git_oid am
     git_reference *refMaster = NULL;
     git_reference_dwim(& refMaster, repo, "refs/heads/master");
     git_annotated_commit_from_ref(&masterAnnotatedCommit, repo, refMaster);
-
-    std::cout << git_oid_tostr_s(git_annotated_commit_id(masterAnnotatedCommit)) << " master before" << std::endl; 
-    std::cout << git_oid_tostr_s(git_annotated_commit_id(amendedAnnotatedCommit)) << " amended before" << std::endl; 
-    std::cout << git_oid_tostr_s(git_annotated_commit_id(amendingAnnotatedCommit)) << " amending before" << std::endl; 
 
     git_rebase *rebaseObject = NULL;
     
