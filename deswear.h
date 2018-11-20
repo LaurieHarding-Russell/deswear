@@ -129,7 +129,7 @@ void rebaseOntoAmended(git_repository* repo, git_oid amendedCommitId, git_oid am
             // git_rebase_commit(mergedRebaseCommitId, rebaseObject, NULL, git_commit_author(rebaseCommit), NULL, NULL);
             while(git_rebase_commit(mergedRebaseCommitId, rebaseObject, NULL, git_commit_author(rebaseCommit), NULL, NULL) == GIT_EUNMERGED) {
                 std::string wait ;
-                std::cout << "Please deal with merge conflict then click enter on this page.\n";
+                std::cout << "Please deal with merge conflict then enter in any string.\n";
                 std::cin >> wait; 
                 std::cout << "Continueing.\n";
             }
