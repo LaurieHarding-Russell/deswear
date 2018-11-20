@@ -9,8 +9,11 @@
 #include "git2.h"
 
 const char * COMMIT_MESSAGE = "Whoops";
-void deswear(git_repository* repo);
+const std::array<std::string, 6> swears = {{
+    " fuck"," shit"," fucked"," ass "," damn"," piss"
+}};
 
+void deswear(git_repository* repo);
 bool containsSwear(const char * summary);
 void updateChildren(git_commit *commit);
 void removeSwears(git_repository* repo, git_commit *commit, bool firstCommit);
@@ -23,8 +26,9 @@ void deswear(git_repository* repo) {
     git_revwalk_push_head(walker);
     git_commit *commit = NULL;
     bool firstCommit = true;
+
     while(!git_revwalk_next(&oid, walker)) {
-		git_commit_lookup(&commit, repo, &oid);
+        git_commit_lookup(&commit, repo, &oid);
 
         const char * summary = git_commit_summary(commit);
 
@@ -33,7 +37,7 @@ void deswear(git_repository* repo) {
             removeSwears(repo, commit, firstCommit);
         }
         
-		git_commit_free(commit);
+        git_commit_free(commit);
         firstCommit = false;
     }
 
@@ -42,9 +46,6 @@ void deswear(git_repository* repo) {
 }
 
 bool containsSwear(const char * summary) {
-    std::array<std::string, 3> swears = {{
-        "shit", "damn", "fuck"
-    }};
 
     std::string commitMessage = summary;
 
@@ -124,15 +125,27 @@ void rebaseOntoAmended(git_repository* repo, git_oid amendedCommitId, git_oid am
         
         if (rebaseOperation != NULL) {
             git_commit_lookup(&rebaseCommit, repo, &rebaseOperation->id);
-            std::string CommitMsg(git_commit_summary(rebaseCommit));
 
-            git_rebase_commit(mergedRebaseCommitId, rebaseObject, NULL, git_commit_author(rebaseCommit), NULL, NULL);
+            // git_rebase_commit(mergedRebaseCommitId, rebaseObject, NULL, git_commit_author(rebaseCommit), NULL, NULL);
+            while(git_rebase_commit(mergedRebaseCommitId, rebaseObject, NULL, git_commit_author(rebaseCommit), NULL, NULL) == GIT_EUNMERGED) {
+                std::string wait ;
+                std::cout << "Please deal with merge conflict then click enter on this page.\n";
+                std::cin >> wait; 
+                std::cout << "Continueing.\n";
+            }
 
             git_commit_free(rebaseCommit);
-            std::cout << "Applying commit \"" << CommitMsg << "\"" << std::endl;
+            std::string CommitMsg(git_commit_summary(rebaseCommit));
+            std::cout << "\r-- Applying commit \"" << git_oid_tostr_s(git_commit_id(rebaseCommit)) << "\"     " << std::flush;
+
         } else {
+            
+            std::string CommitMsg(git_commit_summary(rebaseCommit));
+            std::cout << "-- Problem at \"" << CommitMsg << "\"" << std::endl;
+            std::cout << "-- Problem ID at \"" << git_oid_tostr_s(git_commit_id(rebaseCommit)) << "\"" << std::endl;
             const git_error *e = giterr_last();
-            std::cout << "Error: " << error << " / " << e->klass << " : " << e->message << std::endl;
+            std::cout << "\n\nError: " << error << " / " << e->klass << " : " << e->message << std::endl;
+            exit(1);
         }
     }
 

@@ -7,7 +7,7 @@
 #include <iostream>
 #include "deswear.h"
 
-const char * REPO_LOCATION = "/home/laurie/test";
+const char * REPO_LOCATION = "/home/laurie/ISC-ORT";
 
 int main() {
     git_libgit2_init();
